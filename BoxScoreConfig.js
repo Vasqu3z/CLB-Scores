@@ -9,7 +9,11 @@
 // RULE: Never hardcode column numbers or thresholds in code - always reference this config
 
 var BOX_SCORE_CONFIG = {
-  
+
+  // ===== GAME SHEET IDENTIFICATION =====
+  // Prefix for game sheets (replaces hardcoded "#")
+  GAME_SHEET_PREFIX: "#",
+
   // ===== PITCHER TRACKING =====
   // Dropdown cells for active pitchers
   AWAY_PITCHER_CELL: "D3",
@@ -110,28 +114,5 @@ var BOX_SCORE_CONFIG = {
     39,   // Away team hitting totals
     40,   // Home team hitting header
     50    // Home team hitting totals
-  ],
-  
-  // ===== PERFORMANCE & BEHAVIOR SETTINGS =====
-  // Thresholds and timeouts for script behavior
-  
-  LOCK_TIMEOUT_MS: 30000,  // 30 seconds - How long to wait for lock acquisition
-  
-  PASTE_THRESHOLDS: {
-    DANGER: 27,    // Show strong warning (likely to timeout)
-    CAUTION: 18,   // Show medium warning (may timeout)
-    TOAST: 9      // Show progress toast for pastes larger than this
-  },
-  
-  // ===== SCRIPT PROPERTIES KEYS =====
-  // Keys for storing game state in Script Properties
-  // Each game sheet has its own set of properties (suffixed with _{sheetId})
-  PROPERTY_GAME_STATE: "boxScoreGameState",           // Shadow storage of at-bat grid
-  PROPERTY_PITCHER_STATS: "boxScorePitcherStats",     // Cumulative pitcher stats
-  PROPERTY_BATTER_STATS: "boxScoreBatterStats",       // Cumulative batter stats
-  PROPERTY_ACTIVE_PITCHERS: "boxScoreActivePitchers", // Current active pitchers (C3/C4)
-  
-  // Prefixes for defensive stat associations (NP/E tracking)
-  PROPERTY_PREFIX_NP: "NP",  // Nice Play associations
-  PROPERTY_PREFIX_E: "E"     // Error associations
+  ]
 };
