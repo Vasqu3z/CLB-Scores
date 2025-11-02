@@ -687,8 +687,11 @@ function processTeamAtBats(sheet, atBatGrid, battingTeam, rosterMap, playerStats
       // Parse notation
       var stats = parseNotation(value);
 
-      // Handle pitcher change
-      if (stats.isPitcherChange) {
+      // Check if this is a standalone PC notation (no at-bat stats)
+      var isStandalonePitcherChange = stats.isPitcherChange && stats.BF === 0;
+
+      // Handle standalone pitcher change (no at-bat in this cell)
+      if (isStandalonePitcherChange) {
         // Store current pitcher as previous (for inherited runs)
         previousPitcher = activePitcher;
 
@@ -699,6 +702,8 @@ function processTeamAtBats(sheet, atBatGrid, battingTeam, rosterMap, playerStats
         inheritedRunners = stats.inheritedRunners;
         continue;
       }
+
+      // If we reach here, there's an at-bat to process (may or may not have PC appended)
 
       // Get batter name
       var batterNames = Object.keys(rosterMap).filter(function(name) {
@@ -795,6 +800,19 @@ function processTeamAtBats(sheet, atBatGrid, battingTeam, rosterMap, playerStats
       // Handle stolen bases
       if (stats.SB) {
         playerStats[batterName].fielding.SB += 1;
+      }
+
+      // Handle pitcher change AFTER processing at-bat stats
+      // (e.g., "K PC2" means pitcher gave up K, THEN was taken out)
+      if (stats.isPitcherChange) {
+        // Store current pitcher as previous (for inherited runs)
+        previousPitcher = activePitcher;
+
+        // Switch to next pitcher in timeline
+        pitcherIndex++;
+        activePitcher = pitcherTimeline[pitcherIndex];
+
+        inheritedRunners = stats.inheritedRunners;
       }
     }
 
