@@ -92,6 +92,45 @@ function processEdit(sheet, cell, row, col, newValue, oldValue, range) {
 // ============================================
 
 /**
+ * Count how many relief pitchers have been used (RP1, RP2, etc.)
+ * @param {Sheet} sheet - The game sheet
+ * @return {number} Highest RP number found (0 if none)
+ */
+function countReliefPitchers(sheet) {
+  var posCol = BOX_SCORE_CONFIG.AWAY_PITCHER_RANGE.positionCol;
+  var awayRange = BOX_SCORE_CONFIG.AWAY_PITCHER_RANGE;
+  var homeRange = BOX_SCORE_CONFIG.HOME_PITCHER_RANGE;
+
+  var maxRP = 0;
+
+  // Check away team
+  var awayPositions = sheet.getRange(awayRange.startRow, posCol, awayRange.numPlayers, 1).getValues();
+  for (var i = 0; i < awayPositions.length; i++) {
+    var history = getPositionHistory(awayPositions[i][0]);
+    for (var j = 0; j < history.length; j++) {
+      var match = history[j].match(/^RP(\d+)$/);
+      if (match) {
+        maxRP = Math.max(maxRP, parseInt(match[1]));
+      }
+    }
+  }
+
+  // Check home team
+  var homePositions = sheet.getRange(homeRange.startRow, posCol, homeRange.numPlayers, 1).getValues();
+  for (var i = 0; i < homePositions.length; i++) {
+    var history = getPositionHistory(homePositions[i][0]);
+    for (var j = 0; j < history.length; j++) {
+      var match = history[j].match(/^RP(\d+)$/);
+      if (match) {
+        maxRP = Math.max(maxRP, parseInt(match[1]));
+      }
+    }
+  }
+
+  return maxRP;
+}
+
+/**
  * Handle position swap when pitcher changes
  * @param {Sheet} sheet - The game sheet
  * @param {string} oldPitcher - Previous pitcher name
@@ -118,48 +157,72 @@ function handlePositionSwap(sheet, oldPitcher, newPitcher) {
   
   // Edge case: Old pitcher not found (shouldn't happen in CLB)
   if (oldPitcherRow === -1) {
-    // Just move new pitcher to P
+    // First pitcher of the game - use SP
     var posCol = BOX_SCORE_CONFIG.AWAY_PITCHER_RANGE.positionCol;
     var newPitcherPosition = sheet.getRange(newPitcherRow, posCol).getValue();
-    var updatedPosition = appendPosition(newPitcherPosition, 'P');
+    var updatedPosition = appendPosition(newPitcherPosition, 'SP');
     sheet.getRange(newPitcherRow, posCol).setValue(updatedPosition);
-    
+
     SpreadsheetApp.getActiveSpreadsheet().toast(
-      newPitcher + ' moved to P',
+      newPitcher + ' moved to SP',
       'Position Swap',
       3
     );
     return;
   }
-  
+
   // Get current positions
   var posCol = BOX_SCORE_CONFIG.AWAY_PITCHER_RANGE.positionCol;
   var newPitcherPositionCell = sheet.getRange(newPitcherRow, posCol).getValue();
   var oldPitcherPositionCell = sheet.getRange(oldPitcherRow, posCol).getValue();
-  
+
   var newPitcherCurrentPos = getCurrentPosition(newPitcherPositionCell);
   var oldPitcherCurrentPos = getCurrentPosition(oldPitcherPositionCell);
-  
+
+  // Determine pitcher notation for old and new pitchers
+  var oldPitcherHistory = getPositionHistory(oldPitcherPositionCell);
+  var oldPitcherNotation;
+
+  // If old pitcher is currently at "P" with no history, they're the starting pitcher
+  if (oldPitcherCurrentPos === 'P' && oldPitcherHistory.length === 1) {
+    oldPitcherNotation = 'SP';
+  } else {
+    // Old pitcher keeps their current position notation (already SP/RP#)
+    oldPitcherNotation = oldPitcherCurrentPos;
+  }
+
+  // Count existing relief pitchers to assign next RP number
+  var reliefCount = countReliefPitchers(sheet);
+  var newPitcherNotation = 'RP' + (reliefCount + 1);
+
   // Check if new pitcher already pitched (re-entry warning)
   var newPitcherHistory = getPositionHistory(newPitcherPositionCell);
-  if (newPitcherHistory.indexOf('P') !== -1) {
+  var hasPitched = false;
+  for (var i = 0; i < newPitcherHistory.length; i++) {
+    if (newPitcherHistory[i] === 'P' || newPitcherHistory[i] === 'SP' || newPitcherHistory[i].indexOf('RP') === 0) {
+      hasPitched = true;
+      break;
+    }
+  }
+
+  if (hasPitched) {
     SpreadsheetApp.getActiveSpreadsheet().toast(
-      '⚠️ ' + newPitcher + ' already pitched this game (was at P). Allowing swap...',
+      '⚠️ ' + newPitcher + ' already pitched this game (was at ' + newPitcherHistory[i] + '). Allowing swap...',
       'Pitcher Re-Entry',
       5
     );
   }
-  
+
   // Perform position swap
-  var newPitcherUpdated = appendPosition(newPitcherPositionCell, 'P');
+  var newPitcherUpdated = appendPosition(newPitcherPositionCell, newPitcherNotation);
   var oldPitcherUpdated = appendPosition(oldPitcherPositionCell, newPitcherCurrentPos);
-  
+
   sheet.getRange(newPitcherRow, posCol).setValue(newPitcherUpdated);
   sheet.getRange(oldPitcherRow, posCol).setValue(oldPitcherUpdated);
-  
+
   // Success toast
   SpreadsheetApp.getActiveSpreadsheet().toast(
-    newPitcher + ' moved to P, ' + oldPitcher + ' moved to ' + newPitcherCurrentPos,
+    newPitcher + ' moved to ' + newPitcherNotation + ', ' + oldPitcher + ' moved to ' + newPitcherCurrentPos,
     'Position Swap',
     3
   );
@@ -191,6 +254,7 @@ function installTriggers() {
 
 /**
  * Auto-insert PC[X] notation when pitcher changes
+ * Appends PC notation to the last at-bat cell
  * @param {Sheet} sheet - The game sheet
  * @param {string} pitcherCell - Pitcher dropdown cell (D3 or D4)
  * @param {string} oldPitcher - Previous pitcher name
@@ -201,32 +265,63 @@ function autoInsertPitcherChange(sheet, pitcherCell, oldPitcher, newPitcher) {
     // Determine which team is batting (opposite of pitching team)
     var battingTeam = (pitcherCell === BOX_SCORE_CONFIG.AWAY_PITCHER_CELL) ? 'home' : 'away';
 
-    // Find current inning column and next available cell
-    var result = findNextAtBatCell(sheet, battingTeam);
+    // Find last at-bat cell to append PC notation
+    var result = findLastAtBatCell(sheet, battingTeam);
     if (!result) {
-      logInfo("AutoPC", "No available at-bat cell found for pitcher change");
+      logInfo("AutoPC", "No at-bat entries found for pitcher change - game just started?");
       return;
     }
 
     // Calculate inherited runners from current inning state
     var inheritedRunners = calculateInheritedRunners(sheet, battingTeam, result.col);
 
-    // Insert PC[X] notation with pitcher name for bulk processor
-    var pcNotation = "PC" + inheritedRunners + " [" + newPitcher + "]";
+    // Append PC[X] notation to last at-bat cell
+    var currentValue = sheet.getRange(result.row, result.col).getValue();
+    var pcNotation = currentValue + " PC" + inheritedRunners;
     sheet.getRange(result.row, result.col).setValue(pcNotation);
 
     // Show toast notification
     SpreadsheetApp.getActiveSpreadsheet().toast(
-      'Inserted PC' + inheritedRunners + ' [' + newPitcher + '] (' + inheritedRunners + ' inherited runners)',
+      'Appended PC' + inheritedRunners + ' to last at-bat (' + inheritedRunners + ' inherited runners)',
       'Pitcher Change',
       5
     );
 
-    logInfo("AutoPC", "Inserted " + pcNotation + " at " + result.row + "," + result.col + " for " + newPitcher);
+    logInfo("AutoPC", "Appended PC" + inheritedRunners + " to " + result.row + "," + result.col + " (was: " + currentValue + ")");
 
   } catch (error) {
     logError("AutoPC", "Failed to auto-insert PC notation: " + error.toString(), sheet.getName());
   }
+}
+
+/**
+ * Find the last filled at-bat cell for a team (for appending PC notation)
+ * @param {Sheet} sheet - The game sheet
+ * @param {string} team - "away" or "home"
+ * @return {Object} {row, col} or null if no filled cells found
+ */
+function findLastAtBatCell(sheet, team) {
+  var range = (team === 'away') ?
+    BOX_SCORE_CONFIG.AWAY_ATBAT_RANGE :
+    BOX_SCORE_CONFIG.HOME_ATBAT_RANGE;
+
+  // Read all at-bat cells
+  var numRows = range.endRow - range.startRow + 1;
+  var numCols = range.endCol - range.startCol + 1;
+  var values = sheet.getRange(range.startRow, range.startCol, numRows, numCols).getValues();
+
+  // Scan from right to left (most recent inning), top to bottom
+  // Find the last filled cell
+  for (var c = numCols - 1; c >= 0; c--) {
+    for (var r = numRows - 1; r >= 0; r--) {
+      if (values[r][c] && values[r][c] !== "") {
+        return {row: range.startRow + r, col: range.startCol + c};
+      }
+    }
+  }
+
+  // No filled cells found
+  return null;
 }
 
 /**
@@ -512,6 +607,43 @@ function buildRosterMap(sheet) {
 }
 
 /**
+ * Build pitcher timeline from position history (SP, RP1, RP2, etc.)
+ * @param {Sheet} sheet - The game sheet
+ * @param {string} team - "away" or "home" (the fielding team)
+ * @param {Object} rosterMap - Player roster map
+ * @return {Array} Array of pitcher names in order: [SP, RP1, RP2, ...]
+ */
+function buildPitcherTimeline(sheet, team, rosterMap) {
+  var timeline = [];
+
+  // Scan all players on the fielding team
+  for (var name in rosterMap) {
+    if (rosterMap[name].team !== team) continue;
+
+    var posCol = BOX_SCORE_CONFIG.AWAY_PITCHER_RANGE.positionCol;
+    var row = rosterMap[name].row;
+    var positionCell = sheet.getRange(row, posCol).getValue();
+    var history = getPositionHistory(positionCell);
+
+    // Check for SP (starting pitcher)
+    for (var i = 0; i < history.length; i++) {
+      if (history[i] === 'SP') {
+        timeline[0] = name;
+      }
+
+      // Check for RP# (relief pitchers)
+      var rpMatch = history[i].match(/^RP(\d+)$/);
+      if (rpMatch) {
+        var rpNum = parseInt(rpMatch[1]);
+        timeline[rpNum] = name;
+      }
+    }
+  }
+
+  return timeline;
+}
+
+/**
  * Read at-bat grid for a team
  * @param {Sheet} sheet - The game sheet
  * @param {boolean} isAway - True for away team, false for home team
@@ -537,21 +669,14 @@ function readAtBatGrid(sheet, isAway) {
 function processTeamAtBats(sheet, atBatGrid, battingTeam, rosterMap, playerStats) {
   var fieldingTeam = (battingTeam === 'away') ? 'home' : 'away';
 
-  // Get active pitcher from dropdown
-  var pitcherCell = (battingTeam === 'away') ?
-    BOX_SCORE_CONFIG.AWAY_PITCHER_CELL :
-    BOX_SCORE_CONFIG.HOME_PITCHER_CELL;
+  // Build pitcher timeline from position history (SP, RP1, RP2, ...)
+  var pitcherTimeline = buildPitcherTimeline(sheet, fieldingTeam, rosterMap);
 
-  // For away batters, home pitcher is in D4. For home batters, away pitcher is in D3
-  var activePitcherCell = (battingTeam === 'away') ?
-    BOX_SCORE_CONFIG.HOME_PITCHER_CELL :
-    BOX_SCORE_CONFIG.AWAY_PITCHER_CELL;
-
-  // Start with no active pitcher - will be set by first PC notation or defaulted to dropdown value
-  var activePitcher = null;
+  // Start with first pitcher (SP)
+  var pitcherIndex = 0;
+  var activePitcher = pitcherTimeline[0] || null;
   var previousPitcher = null;
   var inheritedRunners = 0;
-  var firstAtBatProcessed = false;
 
   // Process each batter (row) and inning (column)
   for (var col = 0; col < atBatGrid[0].length; col++) {
@@ -567,20 +692,12 @@ function processTeamAtBats(sheet, atBatGrid, battingTeam, rosterMap, playerStats
         // Store current pitcher as previous (for inherited runs)
         previousPitcher = activePitcher;
 
-        // Switch to new pitcher from PC notation
-        if (stats.newPitcherName) {
-          activePitcher = stats.newPitcherName;
-        }
+        // Switch to next pitcher in timeline
+        pitcherIndex++;
+        activePitcher = pitcherTimeline[pitcherIndex];
 
         inheritedRunners = stats.inheritedRunners;
         continue;
-      }
-
-      // If we haven't set a pitcher yet and this is a real at-bat, use dropdown value
-      // (This handles games that start without a PC notation)
-      if (!activePitcher && !firstAtBatProcessed) {
-        activePitcher = sheet.getRange(activePitcherCell).getValue();
-        firstAtBatProcessed = true;
       }
 
       // Get batter name

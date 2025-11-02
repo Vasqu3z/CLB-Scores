@@ -34,7 +34,6 @@ function parseNotation(value) {
     // v3: New fields for bulk processor
     isPitcherChange: false,   // Is this a pitcher change notation?
     inheritedRunners: 0,      // Number of inherited runners (from PC[X])
-    newPitcherName: null,     // Name of new pitcher (from PC[X] [Name])
     isError: false,           // Is there an error with fielder position?
     isNicePlay: false,        // Is there a nice play with fielder position?
     fielderPosition: null     // Fielder position number (1-9), null if none
@@ -46,14 +45,18 @@ function parseNotation(value) {
   value = String(value).toUpperCase().trim();
 
   // ===== v3: PITCHER CHANGE =====
-  // Format: PC[X] [PitcherName] where X is number of inherited runners (0-3)
-  // Also supports legacy PC[X] without pitcher name
-  var pcMatch = value.match(/PC\[?(\d)\]?\s*(?:\[([^\]]+)\])?/);
+  // Format: PC[X] where X is number of inherited runners (0-3)
+  // Can be standalone or appended to at-bat: "K PC2"
+  var pcMatch = value.match(/PC\[?(\d)\]?/);
   if (pcMatch) {
     stats.isPitcherChange = true;
     stats.inheritedRunners = parseInt(pcMatch[1]) || 0;
-    stats.newPitcherName = pcMatch[2] ? pcMatch[2].trim() : null;
-    return stats; // PC notation has no other stats
+
+    // If it's ONLY a PC notation (no other text), return now
+    if (value.replace(/PC\[?(\d)\]?/, '').trim() === '') {
+      return stats;
+    }
+    // Otherwise, continue parsing the at-bat stats (e.g., "K PC2")
   }
 
   // ===== v3: ERROR WITH FIELDER POSITION =====
