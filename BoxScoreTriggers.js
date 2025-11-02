@@ -1,52 +1,34 @@
 // ===== BOX SCORE TRIGGERS MODULE =====
-// Orchestrates all automation via onEdit trigger
-// Handles pitcher changes and at-bat entries
-// NOW WITH LOCKSERVICE FOR RAPID EDIT SAFETY
+// v3: Orchestrates automation via onEdit trigger and menu-driven bulk processor
+// onEdit handles: pitcher dropdown changes (position swaps + auto PC[X] insertion)
+// Bulk processor handles: all stat calculations from at-bat grid
 
 /**
  * Main onEdit trigger - entry point for all automation
+ * v3: Simplified - no LockService needed since we only handle position swaps
  * @param {Event} e - Edit event object
  */
 function onEdit(e) {
   if (!e || !e.range) return;
-  
+
   var sheet = e.range.getSheet();
   var sheetName = sheet.getName();
 
   // Only run on game sheets (sheets starting with configured prefix)
   if (!sheetName.startsWith(BOX_SCORE_CONFIG.GAME_SHEET_PREFIX)) return;
-  
+
   var cell = e.range.getA1Notation();
   var row = e.range.getRow();
   var col = e.range.getColumn();
   var newValue = e.value || "";
-  
-  // ===== ACQUIRE LOCK FOR SEQUENTIAL PROCESSING =====
-  var lock = LockService.getScriptLock();
-  var lockAcquired = false;
-  
+
   try {
-    // Wait for lock (timeout from config)
-    lockAcquired = lock.tryLock(BOX_SCORE_CONFIG.LOCK_TIMEOUT_MS);
-    
-    if (!lockAcquired) {
-      // Lock timeout - very rare, only if script hung
-      var ui = SpreadsheetApp.getUi();
-      ui.alert(
-        'Box Score Busy',
-        'Another edit is processing. Please wait and try again.',
-        ui.ButtonSet.OK
-      );
-      logWarning("Triggers", "Lock timeout for cell: " + cell, sheetName);
-      return;
-    }
-    
-    // ===== PROCESS EDIT (WITHIN LOCK) =====
+    // Process edit (no lock needed - simple operations only)
     processEdit(sheet, cell, row, col, newValue, e.oldValue, e.range);
-    
+
   } catch (error) {
     logError("Triggers", error.toString(), sheetName + "!" + cell);
-    
+
     // Show user-friendly error
     var ui = SpreadsheetApp.getUi();
     ui.alert(
@@ -57,12 +39,6 @@ function onEdit(e) {
       'Please check the Apps Script logs for details.',
       ui.ButtonSet.OK
     );
-    
-  } finally {
-    // ===== ALWAYS RELEASE LOCK =====
-    if (lockAcquired) {
-      lock.releaseLock();
-    }
   }
 }
 
