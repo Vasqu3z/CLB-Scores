@@ -15,8 +15,27 @@ var BOX_SCORE_CONFIG = {
   GAME_SHEET_PREFIX: "#",
 
   // ===== v3 EXPERIMENTAL FEATURES =====
-  // Auto-insert PC[X] notation when pitcher changes (disable if causing issues)
+
+  // AUTO PITCHER CHANGE NOTATION
+  // When true: Automatically inserts PC[X] notation when you change pitcher dropdown
+  // - Calculates inherited runners from current inning state
+  // - Inserts notation in the next available at-bat cell
+  // - Shows toast notification with inherited runner count
+  // Set to false if you prefer to manually enter PC[X] notations
   AUTO_INSERT_PITCHER_CHANGE: true,
+
+  // REAL-TIME SCORING (HYBRID MODE)
+  // When true: Stats update automatically after each at-bat entry (like v2)
+  // - Runs bulk processor in background after every at-bat
+  // - Provides immediate visual feedback as you score
+  // - Uses v3's reliable "absolute state" calculation (no delta bugs)
+  // - Slightly slower during data entry but eliminates manual "Process Stats" clicks
+  //
+  // When false: Stats only update when you click "Process Game Stats" menu (pure v3)
+  // - Fastest data entry (no processing during input)
+  // - Must manually process stats to see updated numbers
+  // - Best for entering historical games or batch entry
+  AUTO_PROCESS_ON_AT_BAT: true,
 
   // ===== PITCHER TRACKING =====
   // Dropdown cells for active pitchers

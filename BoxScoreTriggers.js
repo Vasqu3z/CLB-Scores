@@ -56,12 +56,12 @@ function processEdit(sheet, cell, row, col, newValue, oldValue, range) {
   // ============================================
   // Handle pitcher dropdown changes with position swaps
   // ============================================
-  if (cell === BOX_SCORE_CONFIG.AWAY_PITCHER_CELL || 
+  if (cell === BOX_SCORE_CONFIG.AWAY_PITCHER_CELL ||
       cell === BOX_SCORE_CONFIG.HOME_PITCHER_CELL) {
-    
+
     // Get old value for position swap
     oldValue = oldValue || "";
-    
+
     // Handle position swap when pitcher changes
     if (oldValue && newValue && oldValue !== newValue) {
       handlePositionSwap(sheet, oldValue, newValue);
@@ -73,10 +73,16 @@ function processEdit(sheet, cell, row, col, newValue, oldValue, range) {
     }
     return;
   }
-  
-  // At-bat entries are no longer processed in onEdit
-  // They will be processed by the bulk processor menu function
+
+  // ============================================
+  // v3 HYBRID: Auto-process stats on at-bat entry
+  // ============================================
   if (isAtBatCell(row, col)) {
+    // If auto-processing is enabled, trigger bulk processor for real-time scoring
+    if (BOX_SCORE_CONFIG.AUTO_PROCESS_ON_AT_BAT) {
+      // Use background processing to avoid blocking the user
+      processGameStatsBulkBackground(sheet);
+    }
     return;
   }
 }
@@ -288,11 +294,33 @@ function calculateInheritedRunners(sheet, battingTeam, currentCol) {
     BOX_SCORE_CONFIG.AWAY_ATBAT_RANGE :
     BOX_SCORE_CONFIG.HOME_ATBAT_RANGE;
 
-  var inningCol = currentCol - range.startCol; // Convert to 0-based inning index
-
-  // Read all at-bats in this inning (up to current position)
+  // Read current column to check if it has data
   var numRows = range.endRow - range.startRow + 1;
-  var values = sheet.getRange(range.startRow, currentCol, numRows, 1).getValues();
+  var currentColValues = sheet.getRange(range.startRow, currentCol, numRows, 1).getValues();
+
+  // Check if current column is empty (new inning scenario)
+  var hasData = false;
+  for (var i = 0; i < currentColValues.length; i++) {
+    if (currentColValues[i][0] && currentColValues[i][0] !== "") {
+      hasData = true;
+      break;
+    }
+  }
+
+  // If current column is empty and we're not in the first column, check previous column
+  // This handles the case where pitcher changes at start of new inning
+  var columnToRead = currentCol;
+  if (!hasData && currentCol > range.startCol) {
+    columnToRead = currentCol - 1;
+  }
+
+  // If still no data (game just started), return 0
+  if (!hasData && currentCol === range.startCol) {
+    return 0;
+  }
+
+  // Read the correct column
+  var values = sheet.getRange(range.startRow, columnToRead, numRows, 1).getValues();
 
   var runnersOnBase = 0;
   var outsRecorded = 0;
@@ -320,7 +348,7 @@ function calculateInheritedRunners(sheet, battingTeam, currentCol) {
     outsRecorded += stats.outs;
   }
 
-  // If 3 outs recorded, no inherited runners (inning over)
+  // If 3 outs recorded, inherited runners should be 0 (inning ended)
   if (outsRecorded >= 3) {
     return 0;
   }
@@ -332,6 +360,44 @@ function calculateInheritedRunners(sheet, battingTeam, currentCol) {
 // ============================================
 // v3: BULK PROCESSOR (ABSOLUTE STATE ENGINE)
 // ============================================
+
+/**
+ * v3 HYBRID: Background processor for real-time scoring (no UI alerts)
+ * Called automatically after each at-bat entry when AUTO_PROCESS_ON_AT_BAT is true
+ * @param {Sheet} sheet - The game sheet
+ */
+function processGameStatsBulkBackground(sheet) {
+  try {
+    // Step 1: Clear all old stat data
+    clearPitcherStatsInSheet(sheet);
+    clearHittingStatsInSheet(sheet);
+
+    // Step 2: Build roster map (player name -> row/position)
+    var rosterMap = buildRosterMap(sheet);
+
+    // Step 3: Read at-bat grids
+    var awayAtBats = readAtBatGrid(sheet, true);  // true = away team
+    var homeAtBats = readAtBatGrid(sheet, false); // false = home team
+
+    // Step 4: Initialize stat storage
+    var playerStats = {}; // {playerName: {pitching: {...}, hitting: {...}, fielding: {...}}}
+
+    // Step 5: Process away team at-bats (home pitcher pitching)
+    var awayState = processTeamAtBats(sheet, awayAtBats, 'away', rosterMap, playerStats);
+
+    // Step 6: Process home team at-bats (away pitcher pitching)
+    var homeState = processTeamAtBats(sheet, homeAtBats, 'home', rosterMap, playerStats);
+
+    // Step 7: Write all stats to sheet in batch
+    writeStatsToSheet(sheet, playerStats, rosterMap);
+
+    logInfo("Processor", "Background processing completed (real-time mode)");
+
+  } catch (error) {
+    logError("Processor", "Background processing failed: " + error.toString(), sheet.getName());
+    // Don't show UI alert - just log the error
+  }
+}
 
 /**
  * v3: Process all game stats from at-bat grid
