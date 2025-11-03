@@ -1,6 +1,6 @@
 # CLB Box Score Automation
 
-Automated box score tracking system for the Casual League Baseball league, built on Google Apps Script.
+Automated box score tracking system via Google Apps scripts for Comets League Baseball.
 
 ## Features
 
@@ -271,3 +271,4 @@ Developed by: Anthony Vasquez
 Version: 3.0
 
 For issues or feature requests, contact your league administrator.
+
