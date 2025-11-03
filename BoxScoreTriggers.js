@@ -458,12 +458,46 @@ function calculateInheritedRunners(sheet, battingTeam, currentCol) {
 // ============================================
 
 /**
+ * Normalize starting pitchers: convert "P" to "SP" for pitchers with no history
+ * This ensures starting pitchers are properly marked before processing
+ * @param {Sheet} sheet - The game sheet
+ */
+function normalizeStartingPitchers(sheet) {
+  var posCol = BOX_SCORE_CONFIG.AWAY_PITCHER_RANGE.positionCol;
+  var awayRange = BOX_SCORE_CONFIG.AWAY_PITCHER_RANGE;
+  var homeRange = BOX_SCORE_CONFIG.HOME_PITCHER_RANGE;
+
+  // Check away team
+  var awayPositions = sheet.getRange(awayRange.startRow, posCol, awayRange.numPlayers, 1).getValues();
+  for (var i = 0; i < awayPositions.length; i++) {
+    var posValue = awayPositions[i][0];
+    if (posValue === 'P') {
+      // Convert P to SP (starting pitcher)
+      sheet.getRange(awayRange.startRow + i, posCol).setValue('SP');
+    }
+  }
+
+  // Check home team
+  var homePositions = sheet.getRange(homeRange.startRow, posCol, homeRange.numPlayers, 1).getValues();
+  for (var i = 0; i < homePositions.length; i++) {
+    var posValue = homePositions[i][0];
+    if (posValue === 'P') {
+      // Convert P to SP (starting pitcher)
+      sheet.getRange(homeRange.startRow + i, posCol).setValue('SP');
+    }
+  }
+}
+
+/**
  * v3 HYBRID: Background processor for real-time scoring (no UI alerts)
  * Called automatically after each at-bat entry when AUTO_PROCESS_ON_AT_BAT is true
  * @param {Sheet} sheet - The game sheet
  */
 function processGameStatsBulkBackground(sheet) {
   try {
+    // Normalize starting pitchers (convert P → SP)
+    normalizeStartingPitchers(sheet);
+
     // Step 1: Clear all old stat data
     clearPitcherStatsInSheet(sheet);
     clearHittingStatsInSheet(sheet);
@@ -512,6 +546,9 @@ function processGameStatsBulk() {
   );
 
   try {
+    // Normalize starting pitchers (convert P → SP)
+    normalizeStartingPitchers(sheet);
+
     // Step 1: Clear all old stat data
     clearPitcherStatsInSheet(sheet);
     clearHittingStatsInSheet(sheet);
@@ -673,22 +710,9 @@ function processTeamAtBats(sheet, atBatGrid, battingTeam, rosterMap, playerStats
   var pitcherTimeline = buildPitcherTimeline(sheet, fieldingTeam, rosterMap);
 
   // Start with first pitcher (SP)
+  // Note: normalizeStartingPitchers() ensures P → SP conversion before processing
   var pitcherIndex = 0;
   var activePitcher = pitcherTimeline[0] || null;
-
-  // Fallback: If no SP/RP markers yet (game just started), find who's at P
-  if (!activePitcher) {
-    for (var name in rosterMap) {
-      if (rosterMap[name].team === fieldingTeam) {
-        var currentPos = rosterMap[name].position;
-        if (currentPos === 'P' || currentPos === 'SP') {
-          activePitcher = name;
-          break;
-        }
-      }
-    }
-  }
-
   var previousPitcher = null;
   var inheritedRunners = 0;
 
