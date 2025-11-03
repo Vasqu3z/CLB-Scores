@@ -6,7 +6,7 @@
 
 /**
  * Clear pitcher and defensive stats in sheet (skip protected rows)
- * v3: Optimized with batch operations
+ * Uses batch operations for performance
  * @param {Sheet} sheet - The game sheet
  */
 function clearPitcherStatsInSheet(sheet) {
@@ -59,7 +59,7 @@ function clearPitcherStatsInSheet(sheet) {
 
 /**
  * Clear hitting and stolen base stats in sheet (skip protected rows)
- * v3: Optimized with batch operations
+ * Uses batch operations for performance
  * @param {Sheet} sheet - The game sheet
  */
 function clearHittingStatsInSheet(sheet) {

@@ -5,13 +5,13 @@
  * Create custom menu when spreadsheet opens
  */
 function onOpen() {
-  addBoxScoreMenu_v3();
+  addBoxScoreMenu();
 }
 
 /**
- * Add Box Score v3 menu to UI
+ * Add Box Score menu to UI
  */
-function addBoxScoreMenu_v3() {
+function addBoxScoreMenu() {
   var ui = SpreadsheetApp.getUi();
 
   ui.createMenu('📊 Box Score Tools')
@@ -28,7 +28,7 @@ function addBoxScoreMenu_v3() {
 
 /**
  * Show pitcher stats viewer - Condensed format, separated by team, in pitching order
- * v3: Reads stats directly from the sheet instead of PropertiesService
+ * Reads stats directly from the sheet
  */
 function showPitcherStats() {
   var sheet = SpreadsheetApp.getActiveSheet();
@@ -101,7 +101,7 @@ function showPitcherStats() {
 
 /**
  * Show batter stats viewer - Baseball statline format, separated by team, in batting order
- * v3: Reads stats directly from the sheet instead of PropertiesService
+ * Reads stats directly from the sheet
  */
 function showBatterStats() {
   var sheet = SpreadsheetApp.getActiveSheet();
@@ -210,7 +210,6 @@ function showBatterStats() {
 
 /**
  * Reset current game - clear all stats
- * v3: Simplified since PropertiesService is no longer used
  */
 function resetCurrentGame() {
   var ui = SpreadsheetApp.getUi();

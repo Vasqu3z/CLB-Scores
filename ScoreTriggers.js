@@ -461,7 +461,7 @@ function calculateInheritedRunners(sheet, battingTeam, currentCol) {
 }
 
 // ============================================
-// v3: BULK PROCESSOR (ABSOLUTE STATE ENGINE)
+// BULK PROCESSOR (ABSOLUTE STATE ENGINE)
 // ============================================
 
 /**
@@ -504,7 +504,7 @@ function normalizeStartingPitchers(sheet) {
 }
 
 /**
- * v3 HYBRID: Background processor for real-time scoring (no UI alerts)
+ * Background processor for real-time scoring (no UI alerts)
  * Called automatically after each at-bat entry when AUTO_PROCESS_ON_AT_BAT is true
  * @param {Sheet} sheet - The game sheet
  */
@@ -545,7 +545,7 @@ function processGameStatsBulkBackground(sheet) {
 }
 
 /**
- * v3: Process all game stats from at-bat grid
+ * Process all game stats from at-bat grid
  * This is the main menu-driven bulk processor that calculates all stats from scratch
  */
 function processGameStatsBulk() {

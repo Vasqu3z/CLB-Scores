@@ -44,7 +44,7 @@ function parseNotation(value) {
 
   value = String(value).toUpperCase().trim();
 
-  // ===== v3: PITCHER CHANGE =====
+  // ===== PITCHER CHANGE =====
   // Format: PC[X] where X is number of inherited runners (0-3)
   // Can be standalone or appended to at-bat: "K PC2"
   var pcMatch = value.match(/PC\[?(\d)\]?/);
@@ -59,7 +59,7 @@ function parseNotation(value) {
     // Otherwise, continue parsing the at-bat stats (e.g., "K PC2")
   }
 
-  // ===== v3: ERROR WITH FIELDER POSITION =====
+  // ===== ERROR WITH FIELDER POSITION =====
   // Format: E[1-9] or E1-E9 (e.g., "1B E6", "OUT E4")
   var errorMatch = value.match(/E\[?([1-9])\]?/);
   if (errorMatch) {
@@ -67,7 +67,7 @@ function parseNotation(value) {
     stats.fielderPosition = parseInt(errorMatch[1]);
   }
 
-  // ===== v3: NICE PLAY WITH FIELDER POSITION =====
+  // ===== NICE PLAY WITH FIELDER POSITION =====
   // Format: NP[1-9] or NP1-NP9 (e.g., "OUT NP6", "1B NP5")
   var npMatch = value.match(/NP\[?([1-9])\]?/);
   if (npMatch) {
