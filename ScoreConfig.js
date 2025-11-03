@@ -1,4 +1,4 @@
-// ===== BOX SCORE CONFIGURATION =====
+// ===== SCORE CONFIGURATION =====
 // Configuration for CLB Box Score Automation
 // 
 // This configuration defines the exact layout of CLB box score sheets.
@@ -9,7 +9,34 @@
 // RULE: Never hardcode column numbers or thresholds in code - always reference this config
 
 var BOX_SCORE_CONFIG = {
-  
+
+  // ===== GAME SHEET IDENTIFICATION =====
+  // Prefix for game sheets (replaces hardcoded "#")
+  GAME_SHEET_PREFIX: "#",
+
+  // ===== AUTOMATION FEATURES =====
+
+  // AUTO PITCHER CHANGE NOTATION
+  // When true: Automatically inserts PC[X] notation when you change pitcher dropdown
+  // - Calculates inherited runners from current inning state
+  // - Inserts notation in the next available at-bat cell
+  // - Shows toast notification with inherited runner count
+  // Set to false if you prefer to manually enter PC[X] notations
+  AUTO_INSERT_PITCHER_CHANGE: true,
+
+  // REAL-TIME SCORING (HYBRID MODE)
+  // When true: Stats update automatically after each at-bat entry
+  // - Runs bulk processor in background after every at-bat
+  // - Provides immediate visual feedback as you score
+  // - Uses reliable "absolute state" calculation (recalculates all stats from scratch)
+  // - Slightly slower during data entry but eliminates manual "Process Stats" clicks
+  //
+  // When false: Stats only update when you click "Process Game Stats" menu
+  // - Fastest data entry (no processing during input)
+  // - Must manually process stats to see updated numbers
+  // - Best for entering historical games or batch entry
+  AUTO_PROCESS_ON_AT_BAT: true,
+
   // ===== PITCHER TRACKING =====
   // Dropdown cells for active pitchers
   AWAY_PITCHER_CELL: "D3",
@@ -110,28 +137,5 @@ var BOX_SCORE_CONFIG = {
     39,   // Away team hitting totals
     40,   // Home team hitting header
     50    // Home team hitting totals
-  ],
-  
-  // ===== PERFORMANCE & BEHAVIOR SETTINGS =====
-  // Thresholds and timeouts for script behavior
-  
-  LOCK_TIMEOUT_MS: 30000,  // 30 seconds - How long to wait for lock acquisition
-  
-  PASTE_THRESHOLDS: {
-    DANGER: 27,    // Show strong warning (likely to timeout)
-    CAUTION: 18,   // Show medium warning (may timeout)
-    TOAST: 9      // Show progress toast for pastes larger than this
-  },
-  
-  // ===== SCRIPT PROPERTIES KEYS =====
-  // Keys for storing game state in Script Properties
-  // Each game sheet has its own set of properties (suffixed with _{sheetId})
-  PROPERTY_GAME_STATE: "boxScoreGameState",           // Shadow storage of at-bat grid
-  PROPERTY_PITCHER_STATS: "boxScorePitcherStats",     // Cumulative pitcher stats
-  PROPERTY_BATTER_STATS: "boxScoreBatterStats",       // Cumulative batter stats
-  PROPERTY_ACTIVE_PITCHERS: "boxScoreActivePitchers", // Current active pitchers (C3/C4)
-  
-  // Prefixes for defensive stat associations (NP/E tracking)
-  PROPERTY_PREFIX_NP: "NP",  // Nice Play associations
-  PROPERTY_PREFIX_E: "E"     // Error associations
+  ]
 };

@@ -1,170 +1,12 @@
-// ===== BOX SCORE UTILITY MODULE =====
-// Shared helper functions for Box Score automation
+// ===== SCORE UTILITY MODULE =====
+// Shared helper functions for score automation
 // Used by all other modules
-
-// ===== SCRIPT PROPERTIES MANAGEMENT =====
-
-/**
- * Get a Script Property key with sheet ID suffix
- * @param {string} baseName - Base property name from config
- * @param {string} sheetId - Sheet ID to append
- * @return {string} Full property key
- */
-function getPropertyKey(baseName, sheetId) {
-  return baseName + "_" + sheetId;
-}
-
-/**
- * Get game state (shadow storage of at-bat grid)
- * @param {string} sheetId - Sheet ID
- * @return {Object} Game state object
- */
-function getGameState(sheetId) {
-  var properties = PropertiesService.getScriptProperties();
-  var key = getPropertyKey(BOX_SCORE_CONFIG.PROPERTY_GAME_STATE, sheetId);
-  var json = properties.getProperty(key);
-  return json ? JSON.parse(json) : {};
-}
-
-/**
- * Save game state
- * @param {string} sheetId - Sheet ID
- * @param {Object} gameState - Game state object
- */
-function saveGameState(sheetId, gameState) {
-  var properties = PropertiesService.getScriptProperties();
-  var key = getPropertyKey(BOX_SCORE_CONFIG.PROPERTY_GAME_STATE, sheetId);
-  properties.setProperty(key, JSON.stringify(gameState));
-}
-
-/**
- * Get pitcher stats
- * @param {string} sheetId - Sheet ID
- * @return {Object} Pitcher stats object
- */
-function getPitcherStats(sheetId) {
-  var properties = PropertiesService.getScriptProperties();
-  var key = getPropertyKey(BOX_SCORE_CONFIG.PROPERTY_PITCHER_STATS, sheetId);
-  var json = properties.getProperty(key);
-  return json ? JSON.parse(json) : {};
-}
-
-/**
- * Save pitcher stats
- * @param {string} sheetId - Sheet ID
- * @param {Object} pitcherStats - Pitcher stats object
- */
-function savePitcherStats(sheetId, pitcherStats) {
-  var properties = PropertiesService.getScriptProperties();
-  var key = getPropertyKey(BOX_SCORE_CONFIG.PROPERTY_PITCHER_STATS, sheetId);
-  properties.setProperty(key, JSON.stringify(pitcherStats));
-}
-
-/**
- * Get batter stats
- * @param {string} sheetId - Sheet ID
- * @return {Object} Batter stats object
- */
-function getBatterStats(sheetId) {
-  var properties = PropertiesService.getScriptProperties();
-  var key = getPropertyKey(BOX_SCORE_CONFIG.PROPERTY_BATTER_STATS, sheetId);
-  var json = properties.getProperty(key);
-  return json ? JSON.parse(json) : {};
-}
-
-/**
- * Save batter stats
- * @param {string} sheetId - Sheet ID
- * @param {Object} batterStats - Batter stats object
- */
-function saveBatterStats(sheetId, batterStats) {
-  var properties = PropertiesService.getScriptProperties();
-  var key = getPropertyKey(BOX_SCORE_CONFIG.PROPERTY_BATTER_STATS, sheetId);
-  properties.setProperty(key, JSON.stringify(batterStats));
-}
-
-/**
- * Get active pitchers
- * @param {string} sheetId - Sheet ID
- * @return {Object} Active pitchers {away: string, home: string}
- */
-function getActivePitchers(sheetId) {
-  var properties = PropertiesService.getScriptProperties();
-  var key = getPropertyKey(BOX_SCORE_CONFIG.PROPERTY_ACTIVE_PITCHERS, sheetId);
-  var json = properties.getProperty(key);
-  return json ? JSON.parse(json) : {away: "", home: ""};
-}
-
-/**
- * Save active pitchers
- * @param {string} sheetId - Sheet ID
- * @param {Object} activePitchers - Active pitchers object
- */
-function saveActivePitchers(sheetId, activePitchers) {
-  var properties = PropertiesService.getScriptProperties();
-  var key = getPropertyKey(BOX_SCORE_CONFIG.PROPERTY_ACTIVE_PITCHERS, sheetId);
-  properties.setProperty(key, JSON.stringify(activePitchers));
-}
-
-/**
- * Clear all properties for a sheet (used by reset)
- * Includes defensive stat associations to prevent storage leak
- * @param {string} sheetId - Sheet ID
- */
-function clearAllProperties(sheetId) {
-  var properties = PropertiesService.getScriptProperties();
-  
-  // Clear main stat storage
-  var keys = [
-    BOX_SCORE_CONFIG.PROPERTY_GAME_STATE,
-    BOX_SCORE_CONFIG.PROPERTY_PITCHER_STATS,
-    BOX_SCORE_CONFIG.PROPERTY_BATTER_STATS,
-    BOX_SCORE_CONFIG.PROPERTY_ACTIVE_PITCHERS
-  ];
-  
-  for (var i = 0; i < keys.length; i++) {
-    var key = getPropertyKey(keys[i], sheetId);
-    properties.deleteProperty(key);
-  }
-  
-  // Clear defensive stat associations (NP and E)
-  // These have keys like "NP_123456_7", "E_123456_10"
-  clearDefensiveAssociations(sheetId);
-  
-  logInfo("Utility", "Cleared all properties for sheet: " + sheetId);
-}
-
-/**
- * Clear all defensive stat associations for a sheet
- * Prevents Properties Service storage leak
- * @param {string} sheetId - Sheet ID
- */
-function clearDefensiveAssociations(sheetId) {
-  var properties = PropertiesService.getScriptProperties();
-  var allProperties = properties.getProperties();
-  
-  var npPrefix = BOX_SCORE_CONFIG.PROPERTY_PREFIX_NP + '_' + sheetId + '_';
-  var ePrefix = BOX_SCORE_CONFIG.PROPERTY_PREFIX_E + '_' + sheetId + '_';
-  
-  var deletedCount = 0;
-  
-  // Find and delete all defensive associations for this sheet
-  for (var key in allProperties) {
-    if (key.indexOf(npPrefix) === 0 || key.indexOf(ePrefix) === 0) {
-      properties.deleteProperty(key);
-      deletedCount++;
-    }
-  }
-  
-  if (deletedCount > 0) {
-    logInfo("Utility", "Cleared " + deletedCount + " defensive associations for sheet: " + sheetId);
-  }
-}
 
 // ===== SHEET OPERATIONS =====
 
 /**
  * Clear pitcher and defensive stats in sheet (skip protected rows)
+ * Uses batch operations for performance
  * @param {Sheet} sheet - The game sheet
  */
 function clearPitcherStatsInSheet(sheet) {
@@ -172,90 +14,106 @@ function clearPitcherStatsInSheet(sheet) {
   var homeRange = BOX_SCORE_CONFIG.HOME_PITCHER_RANGE;
   var pitcherCols = BOX_SCORE_CONFIG.PITCHER_STATS_COLUMNS;
   var fieldingCols = BOX_SCORE_CONFIG.FIELDING_STATS_COLUMNS;
-  
+
   // Get column range for all stats (pitcher + fielding)
   var firstCol = Math.min(
-    pitcherCols.BF, pitcherCols.IP, pitcherCols.H, pitcherCols.HR, 
+    pitcherCols.BF, pitcherCols.IP, pitcherCols.H, pitcherCols.HR,
     pitcherCols.R, pitcherCols.BB, pitcherCols.K,
     fieldingCols.NP, fieldingCols.E, fieldingCols.SB
   );
   var lastCol = Math.max(
-    pitcherCols.BF, pitcherCols.IP, pitcherCols.H, pitcherCols.HR, 
+    pitcherCols.BF, pitcherCols.IP, pitcherCols.H, pitcherCols.HR,
     pitcherCols.R, pitcherCols.BB, pitcherCols.K,
     fieldingCols.NP, fieldingCols.E, fieldingCols.SB
   );
   var numCols = lastCol - firstCol + 1;
-  
-  // Clear away pitcher/defensive stats
+
+  // Build array of zeros for batch write
+  var zeroRow = [];
+  for (var i = 0; i < numCols; i++) {
+    zeroRow.push(0);
+  }
+
+  // Clear away pitcher/defensive stats (batch operation)
+  var awayRows = [];
   for (var row = awayRange.startRow; row <= awayRange.endRow; row++) {
     if (BOX_SCORE_CONFIG.PROTECTED_ROWS.indexOf(row) === -1) {
-      sheet.getRange(row, firstCol, 1, numCols).setValue(0);
+      awayRows.push(zeroRow.slice());
     }
   }
-  
-  // Clear home pitcher/defensive stats
+  if (awayRows.length > 0) {
+    sheet.getRange(awayRange.startRow, firstCol, awayRows.length, numCols).setValues(awayRows);
+  }
+
+  // Clear home pitcher/defensive stats (batch operation)
+  var homeRows = [];
   for (var row = homeRange.startRow; row <= homeRange.endRow; row++) {
     if (BOX_SCORE_CONFIG.PROTECTED_ROWS.indexOf(row) === -1) {
-      sheet.getRange(row, firstCol, 1, numCols).setValue(0);
+      homeRows.push(zeroRow.slice());
     }
+  }
+  if (homeRows.length > 0) {
+    sheet.getRange(homeRange.startRow, firstCol, homeRows.length, numCols).setValues(homeRows);
   }
 }
 
 /**
  * Clear hitting and stolen base stats in sheet (skip protected rows)
+ * Uses batch operations for performance
  * @param {Sheet} sheet - The game sheet
  */
 function clearHittingStatsInSheet(sheet) {
   var hittingRange = BOX_SCORE_CONFIG.HITTING_RANGE;
   var hittingCols = BOX_SCORE_CONFIG.HITTING_STATS_COLUMNS;
   var sbCol = BOX_SCORE_CONFIG.FIELDING_STATS_COLUMNS.SB;
-  
-  // Clear away hitting stats
+
+  // Build zero row for hitting stats (9 columns)
+  var zeroHittingRow = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+
+  // Clear away hitting stats (batch operation)
+  var awayRows = [];
   for (var row = hittingRange.awayStartRow; row <= hittingRange.awayEndRow; row++) {
     if (BOX_SCORE_CONFIG.PROTECTED_ROWS.indexOf(row) === -1) {
-      // Clear all hitting stat columns
-      sheet.getRange(row, hittingCols.AB).setValue(0);
-      sheet.getRange(row, hittingCols.H).setValue(0);
-      sheet.getRange(row, hittingCols.HR).setValue(0);
-      sheet.getRange(row, hittingCols.RBI).setValue(0);
-      sheet.getRange(row, hittingCols.BB).setValue(0);
-      sheet.getRange(row, hittingCols.K).setValue(0);
-      sheet.getRange(row, hittingCols.ROB).setValue(0);
-      sheet.getRange(row, hittingCols.DP).setValue(0);
-      sheet.getRange(row, hittingCols.TB).setValue(0);
+      awayRows.push(zeroHittingRow.slice());
     }
   }
-  
-  // Clear home hitting stats
+  if (awayRows.length > 0) {
+    sheet.getRange(hittingRange.awayStartRow, hittingCols.AB, awayRows.length, hittingRange.numStatCols).setValues(awayRows);
+  }
+
+  // Clear home hitting stats (batch operation)
+  var homeRows = [];
   for (var row = hittingRange.homeStartRow; row <= hittingRange.homeEndRow; row++) {
     if (BOX_SCORE_CONFIG.PROTECTED_ROWS.indexOf(row) === -1) {
-      // Clear all hitting stat columns
-      sheet.getRange(row, hittingCols.AB).setValue(0);
-      sheet.getRange(row, hittingCols.H).setValue(0);
-      sheet.getRange(row, hittingCols.HR).setValue(0);
-      sheet.getRange(row, hittingCols.RBI).setValue(0);
-      sheet.getRange(row, hittingCols.BB).setValue(0);
-      sheet.getRange(row, hittingCols.K).setValue(0);
-      sheet.getRange(row, hittingCols.ROB).setValue(0);
-      sheet.getRange(row, hittingCols.DP).setValue(0);
-      sheet.getRange(row, hittingCols.TB).setValue(0);
+      homeRows.push(zeroHittingRow.slice());
     }
   }
-  
-  // Clear SB from fielding section (rows 7-15, 18-26)
+  if (homeRows.length > 0) {
+    sheet.getRange(hittingRange.homeStartRow, hittingCols.AB, homeRows.length, hittingRange.numStatCols).setValues(homeRows);
+  }
+
+  // Clear SB from fielding section - batch operations
   var awayFieldingRange = BOX_SCORE_CONFIG.AWAY_PITCHER_RANGE;
   var homeFieldingRange = BOX_SCORE_CONFIG.HOME_PITCHER_RANGE;
-  
+
+  var awaySBRows = [];
   for (var row = awayFieldingRange.startRow; row <= awayFieldingRange.endRow; row++) {
     if (BOX_SCORE_CONFIG.PROTECTED_ROWS.indexOf(row) === -1) {
-      sheet.getRange(row, sbCol).setValue(0);
+      awaySBRows.push([0]);
     }
   }
-  
+  if (awaySBRows.length > 0) {
+    sheet.getRange(awayFieldingRange.startRow, sbCol, awaySBRows.length, 1).setValues(awaySBRows);
+  }
+
+  var homeSBRows = [];
   for (var row = homeFieldingRange.startRow; row <= homeFieldingRange.endRow; row++) {
     if (BOX_SCORE_CONFIG.PROTECTED_ROWS.indexOf(row) === -1) {
-      sheet.getRange(row, sbCol).setValue(0);
+      homeSBRows.push([0]);
     }
+  }
+  if (homeSBRows.length > 0) {
+    sheet.getRange(homeFieldingRange.startRow, sbCol, homeSBRows.length, 1).setValues(homeSBRows);
   }
 }
 
@@ -361,56 +219,6 @@ function getPlayerNameFromBatterRow(sheet, row) {
   var hittingRange = BOX_SCORE_CONFIG.HITTING_RANGE;
   var name = sheet.getRange(row, hittingRange.nameCol).getValue();
   return String(name).trim();
-}
-
-/**
- * Initialize pitcher stats for a pitcher
- * @param {string} sheetId - Sheet ID
- * @param {string} pitcherName - Pitcher name
- */
-function initializePitcherIfNeeded(sheetId, pitcherName) {
-  if (!pitcherName || pitcherName === "") return;
-  
-  var pitcherStats = getPitcherStats(sheetId);
-  
-  if (!pitcherStats[pitcherName]) {
-    pitcherStats[pitcherName] = {
-      BF: 0,
-      outs: 0,
-      H: 0,
-      HR: 0,
-      R: 0,
-      BB: 0,
-      K: 0
-    };
-    savePitcherStats(sheetId, pitcherStats);
-  }
-}
-
-/**
- * Initialize batter stats for a batter
- * @param {string} sheetId - Sheet ID
- * @param {string} batterName - Batter name
- */
-function initializeBatterIfNeeded(sheetId, batterName) {
-  if (!batterName || batterName === "") return;
-  
-  var batterStats = getBatterStats(sheetId);
-  
-  if (!batterStats[batterName]) {
-    batterStats[batterName] = {
-      AB: 0,
-      H: 0,
-      HR: 0,
-      RBI: 0,
-      BB: 0,
-      K: 0,
-      ROB: 0,
-      DP: 0,
-      TB: 0
-    };
-    saveBatterStats(sheetId, batterStats);
-  }
 }
 
 // ===== LOGGING FUNCTIONS =====
