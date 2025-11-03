@@ -460,6 +460,7 @@ function calculateInheritedRunners(sheet, battingTeam, currentCol) {
 /**
  * Normalize starting pitchers: convert "P" to "SP" for pitchers with no history
  * This ensures starting pitchers are properly marked before processing
+ * Uses batch operations for performance
  * @param {Sheet} sheet - The game sheet
  */
 function normalizeStartingPitchers(sheet) {
@@ -467,24 +468,31 @@ function normalizeStartingPitchers(sheet) {
   var awayRange = BOX_SCORE_CONFIG.AWAY_PITCHER_RANGE;
   var homeRange = BOX_SCORE_CONFIG.HOME_PITCHER_RANGE;
 
-  // Check away team
+  // Read both teams' positions in batch
   var awayPositions = sheet.getRange(awayRange.startRow, posCol, awayRange.numPlayers, 1).getValues();
+  var homePositions = sheet.getRange(homeRange.startRow, posCol, homeRange.numPlayers, 1).getValues();
+
+  var needsUpdate = false;
+
+  // Convert P → SP in the arrays
   for (var i = 0; i < awayPositions.length; i++) {
-    var posValue = awayPositions[i][0];
-    if (posValue === 'P') {
-      // Convert P to SP (starting pitcher)
-      sheet.getRange(awayRange.startRow + i, posCol).setValue('SP');
+    if (awayPositions[i][0] === 'P') {
+      awayPositions[i][0] = 'SP';
+      needsUpdate = true;
     }
   }
 
-  // Check home team
-  var homePositions = sheet.getRange(homeRange.startRow, posCol, homeRange.numPlayers, 1).getValues();
   for (var i = 0; i < homePositions.length; i++) {
-    var posValue = homePositions[i][0];
-    if (posValue === 'P') {
-      // Convert P to SP (starting pitcher)
-      sheet.getRange(homeRange.startRow + i, posCol).setValue('SP');
+    if (homePositions[i][0] === 'P') {
+      homePositions[i][0] = 'SP';
+      needsUpdate = true;
     }
+  }
+
+  // Write back in batch only if changes were made
+  if (needsUpdate) {
+    sheet.getRange(awayRange.startRow, posCol, awayRange.numPlayers, 1).setValues(awayPositions);
+    sheet.getRange(homeRange.startRow, posCol, homeRange.numPlayers, 1).setValues(homePositions);
   }
 }
 
@@ -645,6 +653,7 @@ function buildRosterMap(sheet) {
 
 /**
  * Build pitcher timeline from position history (SP, RP1, RP2, etc.)
+ * Uses batch read for performance
  * @param {Sheet} sheet - The game sheet
  * @param {string} team - "away" or "home" (the fielding team)
  * @param {Object} rosterMap - Player roster map
@@ -652,24 +661,35 @@ function buildRosterMap(sheet) {
  */
 function buildPitcherTimeline(sheet, team, rosterMap) {
   var timeline = [];
+  var posCol = BOX_SCORE_CONFIG.AWAY_PITCHER_RANGE.positionCol;
 
-  // Scan all players on the fielding team
-  for (var name in rosterMap) {
-    if (rosterMap[name].team !== team) continue;
+  // Determine which range to read based on team
+  var range = (team === 'away') ?
+    BOX_SCORE_CONFIG.AWAY_PITCHER_RANGE :
+    BOX_SCORE_CONFIG.HOME_PITCHER_RANGE;
 
-    var posCol = BOX_SCORE_CONFIG.AWAY_PITCHER_RANGE.positionCol;
-    var row = rosterMap[name].row;
-    var positionCell = sheet.getRange(row, posCol).getValue();
+  // Read all position cells for this team in batch
+  var positionCells = sheet.getRange(range.startRow, posCol, range.numPlayers, 1).getValues();
+  var nameCol = range.nameCol;
+  var names = sheet.getRange(range.startRow, nameCol, range.numPlayers, 1).getValues();
+
+  // Scan through positions to build timeline
+  for (var i = 0; i < positionCells.length; i++) {
+    var positionCell = positionCells[i][0];
+    var name = String(names[i][0]).trim();
+
+    if (!name || !positionCell) continue;
+
     var history = getPositionHistory(positionCell);
 
     // Check for SP (starting pitcher)
-    for (var i = 0; i < history.length; i++) {
-      if (history[i] === 'SP') {
+    for (var j = 0; j < history.length; j++) {
+      if (history[j] === 'SP') {
         timeline[0] = name;
       }
 
       // Check for RP# (relief pitchers)
-      var rpMatch = history[i].match(/^RP(\d+)$/);
+      var rpMatch = history[j].match(/^RP(\d+)$/);
       if (rpMatch) {
         var rpNum = parseInt(rpMatch[1]);
         timeline[rpNum] = name;
