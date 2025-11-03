@@ -675,6 +675,20 @@ function processTeamAtBats(sheet, atBatGrid, battingTeam, rosterMap, playerStats
   // Start with first pitcher (SP)
   var pitcherIndex = 0;
   var activePitcher = pitcherTimeline[0] || null;
+
+  // Fallback: If no SP/RP markers yet (game just started), find who's at P
+  if (!activePitcher) {
+    for (var name in rosterMap) {
+      if (rosterMap[name].team === fieldingTeam) {
+        var currentPos = rosterMap[name].position;
+        if (currentPos === 'P' || currentPos === 'SP') {
+          activePitcher = name;
+          break;
+        }
+      }
+    }
+  }
+
   var previousPitcher = null;
   var inheritedRunners = 0;
 
