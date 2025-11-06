@@ -1,6 +1,7 @@
 // ===== SCORE UTILITY MODULE =====
-// Shared helper functions for score automation
-// Used by all other modules
+// Purpose: Shared helper functions for score automation and sheet operations.
+// Dependencies: ScoreConfig.js
+// Entry Point(s): clearPitcherStatsInSheet, clearHittingStatsInSheet, position tracking functions
 
 // ===== SHEET OPERATIONS =====
 
@@ -148,6 +149,24 @@ function clearPitcherDropdowns(sheet) {
 // ===== HELPER FUNCTIONS =====
 
 /**
+ * Creates a 2D array pre-filled with zeros for batch operations.
+ * @param {number} numRows - The number of rows.
+ * @param {number} numCols - The number of columns.
+ * @return {Array<Array<number>>} A 2D array.
+ */
+function createEmptyBatch(numRows, numCols) {
+  var batch = [];
+  for (var r = 0; r < numRows; r++) {
+    var row = [];
+    for (var c = 0; c < numCols; c++) {
+      row.push(0); // Default to 0
+    }
+    batch.push(row);
+  }
+  return batch;
+}
+
+/**
  * Check if cell is in at-bat range
  * @param {number} row - Row number
  * @param {number} col - Column number
@@ -219,43 +238,6 @@ function getPlayerNameFromBatterRow(sheet, row) {
   var hittingRange = BOX_SCORE_CONFIG.HITTING_RANGE;
   var name = sheet.getRange(row, hittingRange.nameCol).getValue();
   return String(name).trim();
-}
-
-// ===== LOGGING FUNCTIONS =====
-
-/**
- * Log info message
- * @param {string} module - Module name
- * @param {string} message - Message
- */
-function logInfo(module, message) {
-  if (typeof Logger !== 'undefined') {
-    Logger.log("INFO [" + module + "]: " + message);
-  }
-}
-
-/**
- * Log warning message
- * @param {string} module - Module name
- * @param {string} message - Message
- * @param {string} entity - Affected entity
- */
-function logWarning(module, message, entity) {
-  if (typeof Logger !== 'undefined') {
-    Logger.log("WARNING [" + module + "]: " + message + " (Entity: " + entity + ")");
-  }
-}
-
-/**
- * Log error message
- * @param {string} module - Module name
- * @param {string} message - Error message
- * @param {string} entity - Affected entity
- */
-function logError(module, message, entity) {
-  if (typeof Logger !== 'undefined') {
-    Logger.log("ERROR [" + module + "]: " + message + " (Entity: " + entity + ")");
-  }
 }
 
 // ===== POSITION TRACKING UTILITIES =====
