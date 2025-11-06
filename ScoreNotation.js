@@ -1,6 +1,7 @@
 // ===== SCORE NOTATION PARSER MODULE =====
-// Enhanced parser with PC[X], E[1-9], NP[1-9] support
-// Used by the bulk processor
+// Purpose: Parse at-bat notation into stats objects for processing.
+// Dependencies: None (pure parsing logic)
+// Entry Point(s): parseNotation, calculateIP
 
 /**
  * Parse at-bat notation into stats

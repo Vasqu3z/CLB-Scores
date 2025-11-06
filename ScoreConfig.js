@@ -1,12 +1,7 @@
 // ===== SCORE CONFIGURATION =====
-// Configuration for CLB Box Score Automation
-// 
-// This configuration defines the exact layout of CLB box score sheets.
-// Any changes to sheet structure must be reflected here.
-//
-// ONLY used in Box Score Spreadsheet (not Stats Processing)
-//
-// RULE: Never hardcode column numbers or thresholds in code - always reference this config
+// Purpose: Configuration for CLB Box Score Automation defining sheet layout and behavior.
+// Dependencies: None (base configuration)
+// Entry Point(s): BOX_SCORE_CONFIG object referenced by all modules
 
 var BOX_SCORE_CONFIG = {
 
@@ -36,6 +31,12 @@ var BOX_SCORE_CONFIG = {
   // - Must manually process stats to see updated numbers
   // - Best for entering historical games or batch entry
   AUTO_PROCESS_ON_AT_BAT: true,
+
+  // DEBUG LOGGING
+  // Controls whether logging is enabled for debugging purposes
+  DEBUG: {
+    ENABLE_LOGGING: true
+  },
 
   // ===== PITCHER TRACKING =====
   // Dropdown cells for active pitchers
@@ -69,6 +70,17 @@ var BOX_SCORE_CONFIG = {
     BB: 14,   // Column N - Walks Allowed
     K: 15     // Column O - Strikeouts
   },
+
+  // 0-based relative indices for processing pitcher stat arrays
+  PITCHER_STATS_INDICES: {
+    IP: 0,    // (Column I = 9) - 9 = 0
+    BF: 1,    // (Column J = 10) - 9 = 1
+    H: 2,
+    HR: 3,
+    R: 4,
+    BB: 5,
+    K: 6
+  },
   
   // ===== FIELDING STATS LAYOUT =====
   // Columns P-R contain defensive statistics
@@ -76,6 +88,13 @@ var BOX_SCORE_CONFIG = {
     NP: 16,   // Column P - Nice Plays
     E: 17,    // Column Q - Errors
     SB: 18    // Column R - Stolen Bases (for batters)
+  },
+
+  // 0-based relative indices for processing fielding stat arrays
+  FIELDING_STATS_INDICES: {
+    NP: 0,    // (Column P = 16) - 16 = 0
+    E: 1,
+    SB: 2
   },
   
   // ===== HITTING STATS LAYOUT =====
@@ -91,6 +110,19 @@ var BOX_SCORE_CONFIG = {
     ROB: 9,   // Column I - Reached On Base (hits stolen via nice plays)
     DP: 10,   // Column J - Double Plays
     TB: 11    // Column K - Total Bases
+  },
+
+  // 0-based relative indices for processing hitting stat arrays
+  HITTING_STATS_INDICES: {
+    AB: 0,    // (Column C = 3) - 3 = 0
+    H: 1,     // (Column D = 4) - 3 = 1
+    HR: 2,
+    RBI: 3,
+    BB: 4,
+    K: 5,
+    ROB: 6,
+    DP: 7,
+    TB: 8
   },
   
   // ===== PITCHER/FIELDER ROSTER RANGES =====

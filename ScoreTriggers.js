@@ -1,7 +1,7 @@
 // ===== SCORE TRIGGERS MODULE =====
-// Orchestrates automation via onEdit trigger and menu-driven bulk processor
-// onEdit handles: pitcher dropdown changes (position swaps + auto PC[X] insertion)
-// Bulk processor handles: all stat calculations from at-bat grid
+// Purpose: Orchestrates automation via onEdit trigger and menu-driven bulk processor.
+// Dependencies: ScoreConfig.js, ScoreNotation.js, ScoreUtility.js
+// Entry Point(s): onEdit, processGameStatsBulk
 
 /**
  * Main onEdit trigger - entry point for all automation
@@ -27,7 +27,9 @@ function onEdit(e) {
     processEdit(sheet, cell, row, col, newValue, e.oldValue, e.range);
 
   } catch (error) {
-    logError("Triggers", error.toString(), sheetName + "!" + cell);
+    if (BOX_SCORE_CONFIG.DEBUG.ENABLE_LOGGING) {
+      Logger.log("ERROR [Triggers]: " + error.toString() + " (Entity: " + sheetName + "!" + cell + ")");
+    }
 
     // Show user-friendly error
     var ui = SpreadsheetApp.getUi();
@@ -245,14 +247,18 @@ function installTriggers() {
   // Check if onEdit trigger already exists
   for (var i = 0; i < triggers.length; i++) {
     if (triggers[i].getHandlerFunction() === 'onEdit') {
-      logInfo("Triggers", "onEdit trigger already installed");
+      if (BOX_SCORE_CONFIG.DEBUG.ENABLE_LOGGING) {
+        Logger.log("INFO [Triggers]: onEdit trigger already installed");
+      }
       return;
     }
   }
 
   // Simple triggers (like onEdit) don't need manual installation
   // They work automatically when the function is named "onEdit"
-  logInfo("Triggers", "onEdit trigger uses simple trigger (automatic)");
+  if (BOX_SCORE_CONFIG.DEBUG.ENABLE_LOGGING) {
+    Logger.log("INFO [Triggers]: onEdit trigger uses simple trigger (automatic)");
+  }
 }
 
 // ============================================
@@ -275,7 +281,9 @@ function autoInsertPitcherChange(sheet, pitcherCell, oldPitcher, newPitcher) {
     // Find last at-bat cell to append PC notation
     var result = findLastAtBatCell(sheet, battingTeam);
     if (!result) {
-      logInfo("AutoPC", "No at-bat entries found for pitcher change - game just started?");
+      if (BOX_SCORE_CONFIG.DEBUG.ENABLE_LOGGING) {
+        Logger.log("INFO [AutoPC]: No at-bat entries found for pitcher change - game just started?");
+      }
       return;
     }
 
@@ -294,10 +302,14 @@ function autoInsertPitcherChange(sheet, pitcherCell, oldPitcher, newPitcher) {
       5
     );
 
-    logInfo("AutoPC", "Appended PC" + inheritedRunners + " to " + result.row + "," + result.col + " (was: " + currentValue + ")");
+    if (BOX_SCORE_CONFIG.DEBUG.ENABLE_LOGGING) {
+      Logger.log("INFO [AutoPC]: Appended PC" + inheritedRunners + " to " + result.row + "," + result.col + " (was: " + currentValue + ")");
+    }
 
   } catch (error) {
-    logError("AutoPC", "Failed to auto-insert PC notation: " + error.toString(), sheet.getName());
+    if (BOX_SCORE_CONFIG.DEBUG.ENABLE_LOGGING) {
+      Logger.log("ERROR [AutoPC]: Failed to auto-insert PC notation: " + error.toString() + " (Entity: " + sheet.getName() + ")");
+    }
   }
 }
 
@@ -536,10 +548,14 @@ function processGameStatsBulkBackground(sheet) {
     // Step 7: Write all stats to sheet in batch
     writeStatsToSheet(sheet, playerStats, rosterMap);
 
-    logInfo("Processor", "Background processing completed (real-time mode)");
+    if (BOX_SCORE_CONFIG.DEBUG.ENABLE_LOGGING) {
+      Logger.log("INFO [Processor]: Background processing completed (real-time mode)");
+    }
 
   } catch (error) {
-    logError("Processor", "Background processing failed: " + error.toString(), sheet.getName());
+    if (BOX_SCORE_CONFIG.DEBUG.ENABLE_LOGGING) {
+      Logger.log("ERROR [Processor]: Background processing failed: " + error.toString() + " (Entity: " + sheet.getName() + ")");
+    }
     // Don't show UI alert - just log the error
   }
 }
@@ -598,7 +614,9 @@ function processGameStatsBulk() {
       ui.ButtonSet.OK
     );
 
-    logInfo("Processor", "Bulk processing completed in " + duration + "s");
+    if (BOX_SCORE_CONFIG.DEBUG.ENABLE_LOGGING) {
+      Logger.log("INFO [Processor]: Bulk processing completed in " + duration + "s");
+    }
 
   } catch (error) {
     ui.alert(
@@ -608,7 +626,9 @@ function processGameStatsBulk() {
       'Please check the Apps Script logs for details.',
       ui.ButtonSet.OK
     );
-    logError("Processor", error.toString(), sheet.getName());
+    if (BOX_SCORE_CONFIG.DEBUG.ENABLE_LOGGING) {
+      Logger.log("ERROR [Processor]: " + error.toString() + " (Entity: " + sheet.getName() + ")");
+    }
   }
 }
 
@@ -923,44 +943,75 @@ function findPlayerByPosition(rosterMap, team, position) {
  * @param {Object} rosterMap - Player roster map
  */
 function writeStatsToSheet(sheet, playerStats, rosterMap) {
-  var pitcherCols = BOX_SCORE_CONFIG.PITCHER_STATS_COLUMNS;
-  var fieldingCols = BOX_SCORE_CONFIG.FIELDING_STATS_COLUMNS;
-  var hittingCols = BOX_SCORE_CONFIG.HITTING_STATS_COLUMNS;
+  var pCols = BOX_SCORE_CONFIG.PITCHER_STATS_COLUMNS;
+  var fCols = BOX_SCORE_CONFIG.FIELDING_STATS_COLUMNS;
+  var hCols = BOX_SCORE_CONFIG.HITTING_STATS_COLUMNS;
+  var awayPitcherRange = BOX_SCORE_CONFIG.AWAY_PITCHER_RANGE;
+  var homePitcherRange = BOX_SCORE_CONFIG.HOME_PITCHER_RANGE;
   var hittingRange = BOX_SCORE_CONFIG.HITTING_RANGE;
 
-  // Write pitcher and fielding stats
+  // 1. Create empty 2D arrays to hold all stats
+  var numPitcherCols = 7; // IP to K
+  var numFieldingCols = 3; // NP to SB
+  var numHittingCols = 9;  // AB to TB
+
+  var awayPitchingBatch = createEmptyBatch(awayPitcherRange.numPlayers, numPitcherCols);
+  var homePitchingBatch = createEmptyBatch(homePitcherRange.numPlayers, numPitcherCols);
+
+  var awayFieldingBatch = createEmptyBatch(awayPitcherRange.numPlayers, numFieldingCols);
+  var homeFieldingBatch = createEmptyBatch(homePitcherRange.numPlayers, numFieldingCols);
+
+  var awayHittingBatch = createEmptyBatch(hittingRange.numPlayers, numHittingCols);
+  var homeHittingBatch = createEmptyBatch(hittingRange.numPlayers, numHittingCols);
+
+  // 2. Loop through playerStats ONCE to populate batch arrays
   for (var name in playerStats) {
     if (!rosterMap[name]) continue;
 
-    var row = rosterMap[name].row;
-    var team = rosterMap[name].team;
+    var map = rosterMap[name];
+    var stats = playerStats[name];
+    var batchIndex = map.batterIndex; // 0-8
 
-    // Write pitching stats if player has them
-    if (playerStats[name].pitching) {
-      var p = playerStats[name].pitching;
-      var ip = calculateIP(p.outs);
-
-      var pitchingArray = [[ip, p.BF, p.H, p.HR, p.R, p.BB, p.K]];
-      sheet.getRange(row, pitcherCols.IP, 1, pitchingArray[0].length).setValues(pitchingArray);
+    // Pitching & Fielding Stats (go in the same roster block)
+    if (map.team === 'away') {
+      if (stats.pitching) {
+        var p = stats.pitching;
+        awayPitchingBatch[batchIndex] = [calculateIP(p.outs), p.BF, p.H, p.HR, p.R, p.BB, p.K];
+      }
+      if (stats.fielding) {
+        var f = stats.fielding;
+        awayFieldingBatch[batchIndex] = [f.NP, f.E, f.SB];
+      }
+    } else { // Home Team
+      if (stats.pitching) {
+        var p = stats.pitching;
+        homePitchingBatch[batchIndex] = [calculateIP(p.outs), p.BF, p.H, p.HR, p.R, p.BB, p.K];
+      }
+      if (stats.fielding) {
+        var f = stats.fielding;
+        homeFieldingBatch[batchIndex] = [f.NP, f.E, f.SB];
+      }
     }
 
-    // Write fielding stats if player has them
-    if (playerStats[name].fielding) {
-      var f = playerStats[name].fielding;
-      var fieldingArray = [[f.NP, f.E, f.SB]];
-      sheet.getRange(row, fieldingCols.NP, 1, 3).setValues(fieldingArray);
-    }
-
-    // Write hitting stats
-    if (playerStats[name].hitting) {
-      var h = playerStats[name].hitting;
-      var batterIndex = rosterMap[name].batterIndex;
-      var hittingRow = (team === 'away') ?
-        hittingRange.awayStartRow + batterIndex :
-        hittingRange.homeStartRow + batterIndex;
-
-      var hittingArray = [[h.AB, h.H, h.HR, h.RBI, h.BB, h.K, h.ROB, h.DP, h.TB]];
-      sheet.getRange(hittingRow, hittingCols.AB, 1, hittingArray[0].length).setValues(hittingArray);
+    // Hitting Stats (go in a separate roster block)
+    if (stats.hitting) {
+      var h = stats.hitting;
+      var hittingArray = [h.AB, h.H, h.HR, h.RBI, h.BB, h.K, h.ROB, h.DP, h.TB];
+      if (map.team === 'away') {
+        awayHittingBatch[batchIndex] = hittingArray;
+      } else {
+        homeHittingBatch[batchIndex] = hittingArray;
+      }
     }
   }
+
+  // 3. Write all stats in 6 batch operations (AFTER the loop)
+  sheet.getRange(awayPitcherRange.startRow, pCols.IP, awayPitcherRange.numPlayers, numPitcherCols).setValues(awayPitchingBatch);
+  sheet.getRange(homePitcherRange.startRow, pCols.IP, homePitcherRange.numPlayers, numPitcherCols).setValues(homePitchingBatch);
+
+  sheet.getRange(awayPitcherRange.startRow, fCols.NP, awayPitcherRange.numPlayers, numFieldingCols).setValues(awayFieldingBatch);
+  sheet.getRange(homePitcherRange.startRow, fCols.NP, homePitcherRange.numPlayers, numFieldingCols).setValues(homeFieldingBatch);
+
+  sheet.getRange(hittingRange.awayStartRow, hCols.AB, hittingRange.numPlayers, numHittingCols).setValues(awayHittingBatch);
+  sheet.getRange(hittingRange.homeStartRow, hCols.AB, hittingRange.numPlayers, numHittingCols).setValues(homeHittingBatch);
 }
